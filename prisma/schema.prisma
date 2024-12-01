@@ -1,8 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Prisma Schema for SkillBridge AI
 
 generator client {
   provider = "prisma-client-js"
@@ -19,15 +15,33 @@ model User {
   email             String             @unique
   password          String
   role              UserRole
-  skills            String[]           // Remove the `?` here
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  resetToken        String?
+  resetTokenExpiry  DateTime?
 
-  courses           Course[]           @relation("UserCourses")
-  skillAssessments  SkillAssessment[]  @relation("UserSkillAssessments")
-  certifications    Certification[]    @relation("UserCertifications")
+  skills            UserSkill[]        // Relation to UserSkill table
+  courses           UserCourseProgress[] // Relation to track course progress
+  jobApplications   JobApplication[]   // Relation to track job applications
+  certifications    Certification[]    // Relation to certifications
+  notifications     Notification[]     // Relation to notifications
 }
 
+model Skill {
+  id       Int         @id @default(autoincrement())
+  name     String      @unique
+  users    UserSkill[] // Relation to users
+}
+
+model UserSkill {
+  id          Int     @id @default(autoincrement())
+  userId      Int
+  skillId     Int
+  proficiency Int      // Proficiency level (0-100)
+
+  user        User     @relation(fields: [userId], references: [id])
+  skill       Skill    @relation(fields: [skillId], references: [id])
+}
 
 model Course {
   id          Int              @id @default(autoincrement())
@@ -38,32 +52,62 @@ model Course {
   difficulty  String
   duration    Int
   imageUrl    String?
+  url         String           // URL to the course
+  rating      Float            @default(0.0) // Average rating
   createdById Int
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  createdBy   User             @relation(fields: [createdById], references: [id], name: "UserCourses")
-  certifications Certification[] @relation("CourseCertifications")
+  createdBy   User             @relation(fields: [createdById], references: [id])
+  progress    UserCourseProgress[] // Relation to track user progress
+  certifications Certification[] // Relation to certifications
+}
+
+model UserCourseProgress {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  courseId   Int
+  progress   Int      // Progress percentage (0-100)
+  completed  Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id])
+  course     Course   @relation(fields: [courseId], references: [id])
 }
 
 model Job {
-  id            Int       @id @default(autoincrement())
-  title         String
-  companyName   String
-  location      String
-  description   String
-  skillsRequired String[]
-  postedAt      DateTime  @default(now())
+  id             Int       @id @default(autoincrement())
+  title          String
+  companyName    String
+  location       String
+  description    String
+  skillsRequired Skill[]   // Relation to skills
+  employmentType String    // Full-time, Part-time, etc.
+  salaryRange    String    // e.g., "50k-70k USD"
+  postedAt       DateTime  @default(now())
+
+  applications   JobApplication[] // Relation to track applications
+}
+
+model JobApplication {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  jobId     Int
+  status    String   // Applied, Reviewed, Accepted, Rejected, etc.
+  appliedAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  job       Job      @relation(fields: [jobId], references: [id])
 }
 
 model SkillAssessment {
   id        Int       @id @default(autoincrement())
   userId    Int
   skillName String
-  score     Int
+  score     Int       // Score for the assessment
   createdAt DateTime  @default(now())
 
-  user      User      @relation(fields: [userId], references: [id], name: "UserSkillAssessments")
+  user      User      @relation(fields: [userId], references: [id])
 }
 
 model Certification {
@@ -71,9 +115,20 @@ model Certification {
   userId    Int
   courseId  Int
   issuedAt  DateTime  @default(now())
+  score     Int       // Score/grade for the certification
 
-  user      User      @relation(fields: [userId], references: [id], name: "UserCertifications")
-  course    Course    @relation(fields: [courseId], references: [id], name: "CourseCertifications")
+  user      User      @relation(fields: [userId], references: [id])
+  course    Course    @relation(fields: [courseId], references: [id])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  message   String
+  status    String   // Unread, Read, etc.
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 enum UserRole {
