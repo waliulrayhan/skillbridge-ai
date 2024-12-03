@@ -42,10 +42,10 @@ export default function Login() {
               router.push('/dashboard');
               break;
             case 'EDUCATOR':
-              router.push('/educator/courses');
+              router.push('/dashboard');
               break;
             case 'ADMIN':
-              router.push('/admin');
+              router.push('/dashboard');
               break;
             default:
               router.push('/dashboard');
