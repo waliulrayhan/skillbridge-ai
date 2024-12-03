@@ -29,26 +29,34 @@ export default function Login() {
       if (result?.error) {
         setError('Invalid email or password');
       } else {
-        // Redirect based on user role
-        const response = await fetch('/api/auth/user');
-        const userData = await response.json();
-        
-        switch (userData.role) {
-          case 'STUDENT':
-            router.push('/dashboard');
-            break;
-          case 'EDUCATOR':
-            router.push('/educator/courses');
-            break;
-          case 'ADMIN':
-            router.push('/admin');
-            break;
-          default:
-            router.push('/dashboard');
+        try {
+          const response = await fetch('/api/auth/user');
+          if (!response.ok) {
+            throw new Error('Failed to fetch user data');
+          }
+          
+          const userData = await response.json();
+          
+          switch (userData.role) {
+            case 'STUDENT':
+              router.push('/dashboard');
+              break;
+            case 'EDUCATOR':
+              router.push('/educator/courses');
+              break;
+            case 'ADMIN':
+              router.push('/admin');
+              break;
+            default:
+              router.push('/dashboard');
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+          router.push('/dashboard'); // Fallback to dashboard if user data fetch fails
         }
       }
     } catch (error) {
-    console.error(error);
+      console.error('Login error:', error);
       setError('An error occurred during login');
     } finally {
       setIsLoading(false);

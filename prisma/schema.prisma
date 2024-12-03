@@ -1,5 +1,3 @@
-// Prisma Schema for SkillBridge AI
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -25,12 +23,15 @@ model User {
   jobApplications   JobApplication[]   // Relation to track job applications
   certifications    Certification[]    // Relation to certifications
   notifications     Notification[]     // Relation to notifications
+  createdCourses    Course[]           // Reciprocal relation for `createdBy`
+  skillAssessments  SkillAssessment[]  // Reciprocal relation for `SkillAssessment`
 }
 
 model Skill {
   id       Int         @id @default(autoincrement())
   name     String      @unique
   users    UserSkill[] // Relation to users
+  jobs     Job[]       // Reciprocal relation for `skillsRequired`
 }
 
 model UserSkill {

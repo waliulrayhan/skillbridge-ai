@@ -1,18 +1,17 @@
 import { NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
+import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import NextAuth from "next-auth/next";
-import { Adapter } from "next-auth/adapters";
-import { JWT } from "next-auth/jwt";
-import { Session } from "next-auth";
-import { User as NextAuthUser } from "next-auth";
+import { UserRole } from "@prisma/client";
 
-// Extend User and AdapterUser types to include `role`
 declare module "next-auth" {
   interface User {
-    role: string;
+    id: string;
+    email: string;
+    username: string;
+    role: UserRole;
   }
 
   interface AdapterUser {
@@ -21,67 +20,90 @@ declare module "next-auth" {
 
   interface Session {
     user: {
-      role: string;
+      id: string;
       email: string;
-      name: string;
+      username: string;
+      role: string;
     };
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
+    id: string;
+    email: string;
+    username: string;
     role: string;
   }
 }
 
-interface Credentials {
-  email: string;
-  password: string;
-}
-
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as unknown as Adapter,
+  adapter: PrismaAdapter(prisma) as any,
   providers: [
     CredentialsProvider({
-      name: "credentials",
+      name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
+        email: { label: "Email", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials: Credentials | undefined) {
+      async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("Invalid credentials");
+          throw new Error("Missing email or password");
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email },
+            select: {
+              id: true,
+              email: true,
+              password: true,
+              name: true,
+              role: true,
+            },
+          });
 
-        if (
-          !user ||
-          !(await bcrypt.compare(credentials.password, user.password))
-        ) {
-          throw new Error("Invalid credentials");
+          if (!user) {
+            throw new Error("User not found");
+          }
+
+          const isPasswordValid = await bcrypt.compare(
+            credentials.password,
+            user.password
+          );
+
+          if (!isPasswordValid) {
+            throw new Error("Invalid password");
+          }
+
+          return {
+            id: user.id.toString(),
+            email: user.email,
+            username: user.name,
+            role: user.role,
+          };
+        } catch (error) {
+          console.error("Authorization error:", error);
+          return null;
         }
-
-        return {
-          id: user.id.toString(),
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        };
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }: { token: JWT; user?: NextAuthUser | null }) {
+    async jwt({ token, user }) {
       if (user) {
+        token.id = user.id;
+        token.email = user.email;
+        token.username = user.username;
         token.role = user.role;
       }
       return token;
     },
-    async session({ session, token }: { session: Session; token: JWT }) {
-      if (session?.user) {
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id;
+        session.user.email = token.email;
+        session.user.username = token.username as string;
         session.user.role = token.role;
       }
       return session;
@@ -90,8 +112,12 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/auth/login",
     error: "/auth/error",
-    verifyRequest: "/auth/verify-request",
   },
+  session: {
+    strategy: "jwt",
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
 };
 
 const handler = NextAuth(authOptions);
